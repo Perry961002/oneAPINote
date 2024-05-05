@@ -6,3 +6,7 @@
 - 项目中使用了3种方案来实现矩阵乘法，并调用了`Intel MKL`的接口来进行性能对比，最后得到了**24**倍左右的性能优势。
 
   <img src=".\img\matrixkernel_testresult.png" alt="matrixkernel_testresult" style="zoom:50%;" />
+
+- 另外还实现了矩阵的卷积运算，测试结果如下
+
+  <img src=".\img\matrixconv.png" alt="matrixconv" style="zoom:50%;" />

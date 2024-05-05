@@ -349,18 +349,6 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 								pMatrixC[nOffsetMatrixRowC + nColIndex] = _Sum;
 							}
 						}
-
-						// 写入结果子矩阵
-						/*for (int m = 0; m < nSubMatrixSize; m++) {
-							int nRowIndex = nGlobalRow + m;
-							if (nRowIndex >= nMatrixShapeM) break;
-							int nOffset = nRowIndex * nMatrixShapeN;
-							for (int n = 0; n < nSubMatrixSize; n++) {
-								int nColIndex = nGlobalCol + n;
-								if (nColIndex >= nMatrixShapeN) break;
-								pMatrixC[nOffset + nColIndex] = SubMatrix[m][n];
-							}
-						}*/
 					});
 			}
 		);
@@ -439,6 +427,202 @@ int MatrixTranspose_GPUKernel(ValueType* pMatrixIn, ValueType* pMatrixOut, int n
 	{
 		std::cout << ex.code().message() << std::endl;
 		return ex.code().value();
+	}
+
+	return 0;
+}
+
+int MatrixConvolution_GPUKernel(ValueType* pMatrixInput, int nInputM, int nInputN,
+	ValueType* pMatrixKernel, int nKernelM, int nKernelN, ValueType* pMatrixOutput,
+	int nBlockSize, sycl::queue* pstDPCQueue)
+{
+	if (!pMatrixInput || !pMatrixKernel || !pMatrixOutput || !pstDPCQueue ||
+		nInputM <= 0 || nInputN <= 0 || nKernelM <= 0 || nKernelN <= 0 ||
+		nInputM <= nKernelM || nInputN <= nKernelN || nBlockSize <= 0)
+	{
+		return -1;
+	}
+
+	try
+	{
+		// 输出矩阵的形状
+		int nOutputM = nInputM - nKernelM + 1;
+		 int nOutputN = nInputN - nKernelN + 1;
+		// 矫正任务的全局范围
+		int nGridRows = ((nOutputM + nSubMatrixSize - 1) / nSubMatrixSize + nBlockSize - 1) / nBlockSize * nBlockSize;
+		int nGridCols = ((nOutputN + nSubMatrixSize - 1) / nSubMatrixSize + nBlockSize - 1) / nBlockSize * nBlockSize;
+		
+		// 初始化nd_range
+		sycl::range<2> stGlobalRange(nGridRows, nGridCols);
+		sycl::range<2> stLocalRange(nBlockSize, nBlockSize);
+		sycl::nd_range<2> stTaskRange(stGlobalRange, stLocalRange);
+
+		auto stTaskEvent = pstDPCQueue->submit([&](sycl::handler& stDPCHandle)
+			{
+				stDPCHandle.parallel_for(stTaskRange, [=](sycl::nd_item<2> _Item)
+					{
+						int nOutputBeginRow = _Item.get_global_id(0) * nSubMatrixSize;
+						int nOutputBeginCol = _Item.get_global_id(1) * nSubMatrixSize;
+
+						for (int m = 0; m < nSubMatrixSize; ++m)
+						{
+							int nOutRowIndex = nOutputBeginRow + m;
+							if (nOutRowIndex >= nOutputM) break;
+							int nOutRowOffset = nOutRowIndex * nOutputN;
+							for (int n = 0; n < nSubMatrixSize; ++n)
+							{
+								int nOutColIndex = nOutputBeginCol + n;
+								if (nOutColIndex >= nOutputN) break;
+
+								ValueType _Sum = 0;
+
+								for (int nKernelRow = 0; nKernelRow < nKernelM; ++nKernelRow)
+								{
+									ValueType* pMatrixIn = pMatrixInput + (nOutRowIndex + nKernelRow) * nInputN + nOutColIndex;
+									int nKernelRowOffset = nKernelRow * nKernelN;
+									for (int nKernelCol = 0; nKernelCol < nKernelN; ++nKernelCol)
+									{
+										ValueType _In = pMatrixIn[nKernelCol];
+										ValueType _Kernel = pMatrixKernel[nKernelRowOffset + nKernelCol];
+										_Sum += _In * _Kernel;
+									}
+								}
+
+								pMatrixOutput[nOutRowOffset + nOutColIndex] = _Sum;
+							}
+						}
+
+					});
+			});
+		stTaskEvent.wait();
+	}
+	catch (sycl::exception& ex)
+	{
+		std::cout << ex.code().message() << std::endl;
+		return ex.code().value();
+	}
+
+	return 0;
+}
+
+
+int MatrixConvolution_GPUKernel_V2(ValueType* pMatrixInput, int nInputM, int nInputN,
+	ValueType* pMatrixKernel, int nKernelM, int nKernelN, ValueType* pMatrixOutput,
+	int nBlockSize, sycl::queue* pstDPCQueue)
+{
+	if (!pMatrixInput || !pMatrixKernel || !pMatrixOutput || !pstDPCQueue ||
+		nInputM <= 0 || nInputN <= 0 || nKernelM <= 0 || nKernelN <= 0 ||
+		nInputM <= nKernelM || nInputN <= nKernelN || nBlockSize <= 0)
+	{
+		return -1;
+	}
+
+	try
+	{
+		// 输出矩阵的形状
+		int nOutputM = nInputM - nKernelM + 1;
+		int nOutputN = nInputN - nKernelN + 1;
+		// 矫正任务的全局范围
+		int nGridRows = (nOutputM + nBlockSize - 1) / nBlockSize * nBlockSize;
+		int nGridCols = (nOutputN + nBlockSize - 1) / nBlockSize * nBlockSize;
+		// 初始化nd_range
+		sycl::range<2> stGlobalRange(nGridRows, nGridCols);
+		sycl::range<2> stLocalRange(nBlockSize, nBlockSize);
+		sycl::nd_range<2> stTaskRange(stGlobalRange, stLocalRange);
+
+		auto stTaskEvent = pstDPCQueue->submit([&](sycl::handler& stDPCHandle)
+			{
+				stDPCHandle.parallel_for(stTaskRange, [=](sycl::nd_item<2> _Item)
+					{
+						int nOutputRowIndex = _Item.get_global_id(0);
+						int nOutputColIndex = _Item.get_global_id(1);
+						// 保证输出矩阵的下标没有越界
+						if (nOutputRowIndex >= nOutputM || nOutputColIndex >= nOutputN) return;
+						ValueType _Sum = 0;
+						ValueType arrInput[nLocalFloatArrayLen] = { 0 };
+						ValueType arrKernel[nLocalFloatArrayLen] = { 0 };
+						int nUsedPosition = 0;
+						for (int m = 0; m < nKernelM; ++m)
+						{
+							int nInputRowOffset = (nOutputRowIndex + m) * nInputN + nOutputColIndex;
+							int nKernelRowOffset = m * nKernelN;
+							for (int n = 0; n < nKernelN; ++n)
+							{
+								arrInput[nUsedPosition] = pMatrixInput[nInputRowOffset + n];
+								arrKernel[nUsedPosition] = pMatrixKernel[nKernelRowOffset + n];
+								++nUsedPosition;
+								if (nUsedPosition == nLocalFloatArrayLen)
+								{
+									for (int nIndex = 0; nIndex < nLocalFloatArrayLen; ++nIndex)
+									{
+										_Sum += arrInput[nIndex] * arrKernel[nIndex];
+										arrInput[nIndex] = 0; 
+										arrKernel[nIndex] = 0;
+									}
+									nUsedPosition = 0;
+								}
+							}
+						}
+
+						for (int nIndex = 0; nIndex < nLocalFloatArrayLen; ++nIndex)
+						{
+							_Sum += arrInput[nIndex] * arrKernel[nIndex];
+						}
+						pMatrixOutput[nOutputRowIndex * nOutputN + nOutputColIndex] = _Sum;
+					});
+			});
+		stTaskEvent.wait();
+	}
+	catch (sycl::exception& ex)
+	{
+		std::cout << ex.code().message() << std::endl;
+		return ex.code().value();
+	}
+
+	return 0;
+}
+
+/// <summary>
+/// 卷积
+/// </summary>
+/// <param name="pMatrixInput"></param>
+/// <param name="nInputM"></param>
+/// <param name="nInputN"></param>
+/// <param name="pMatrixKernel"></param>
+/// <param name="nKernelM"></param>
+/// <param name="nKernelN"></param>
+/// <param name="pMatrixOutput">OutputM=nInputM-nKernelM+1, OutputN=nInputN-nKernelN+1</param>
+/// <returns></returns>
+int MatrixConvolution_CPUKernel(ValueType* pMatrixInput, int nInputM, int nInputN,
+	ValueType* pMatrixKernel, int nKernelM, int nKernelN, ValueType* pMatrixOutput)
+{
+	if (!pMatrixInput || !pMatrixKernel || !pMatrixOutput || nInputM <= 0 || nInputN <= 0 || nKernelM <= 0 || nKernelN <= 0 ||
+		nInputM <= nKernelM || nInputN <= nKernelN)
+	{
+		return -1;
+	}
+
+	// 输出矩阵的形状
+	int nOutputM = nInputM - nKernelM + 1;
+	int nOutputN = nInputN - nKernelN + 1;
+
+	for (int nOutputRowIndex = 0; nOutputRowIndex < nOutputM; ++nOutputRowIndex)
+	{
+		ValueType* pOutRow = pMatrixOutput + nOutputRowIndex * nOutputN;
+		for (int nOutputColIndex = 0; nOutputColIndex < nOutputN; ++nOutputColIndex)
+		{
+			ValueType _SubSum = 0.0;
+			for (int nKernelRowIndex = 0; nKernelRowIndex < nKernelM; ++nKernelRowIndex)
+			{
+				ValueType* pKernelRow = pMatrixKernel + nKernelRowIndex * nKernelN;
+				ValueType* pInputRow = pMatrixInput + (nOutputRowIndex + nKernelRowIndex) * nInputN + nOutputColIndex;
+				for (int nKernelColIndex = 0; nKernelColIndex < nKernelN; ++nKernelColIndex)
+				{
+					_SubSum += pInputRow[nKernelColIndex] * pKernelRow[nKernelColIndex];
+				}
+			}
+			pOutRow[nOutputColIndex] = _SubSum;
+		}
 	}
 
 	return 0;
