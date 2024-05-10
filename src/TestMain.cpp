@@ -3,8 +3,8 @@
 
 int main()
 {
-	//TestMatrixKernel();
-	TestMatrixConvolution();
+	TestMatrixKernel();
+	//TestMatrixConvolution();
 	//TestVectorKernel();
 	return 0;
 }

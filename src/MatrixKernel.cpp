@@ -25,8 +25,7 @@ const int nSubMatrixSize = 8;
 /// <param name="pstDPCQueue">DPC++的设备队列</param>
 /// <returns></returns>
 int MatrixMulti_GPUKernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueType* pMatrixC,
-	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK,
-	int nBlockSize, sycl::queue* pstDPCQueue)
+	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK, ValueType alpha, ValueType beta, int nBlockSize, sycl::queue* pstDPCQueue)
 {
 	if (!pstDPCQueue || !pMatrixA || !pMatrixB || !pMatrixC ||
 		nMatrixShapeM <= 0 || nMatrixShapeN <= 0 || nMatrixShapeK <= 0 || nBlockSize <= 0)
@@ -76,6 +75,7 @@ int MatrixMulti_GPUKernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueType* p
 							//_Sum += pMatrixA[nOffestMatrixRowA + _nIndex] * pMatrixB[nMatrixShapeN * _nIndex + nColIndex];
 							_Sum += pMatrixA[nOffestMatrixRowA + _nIndex] * pMatrixTransposeB[nOffestMatrixTransposeRowB + _nIndex];
 						}
+						_Sum = _Sum * alpha + beta * pMatrixC[nMatrixShapeN * nRowIndex + nColIndex];
 						pMatrixC[nMatrixShapeN * nRowIndex + nColIndex] = _Sum;
 					});
 			}
@@ -112,7 +112,7 @@ int MatrixMulti_GPUKernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueType* p
 /// <param name="pstDPCQueue">DPC++的设备队列</param>
 /// <returns></returns>
 int MatrixMulti_OMPKernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueType* pMatrixC,
-	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK)
+	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK, ValueType alpha, ValueType beta)
 {
 	if (pMatrixA == nullptr || pMatrixB == nullptr || pMatrixC == nullptr ||
 		nMatrixShapeM <= 0 || nMatrixShapeN <= 0 || nMatrixShapeK <= 0)
@@ -132,6 +132,7 @@ int MatrixMulti_OMPKernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueType* p
 			{
 				_Sum += pMatrixA[nOffestMatrixRowA + _K] * pMatrixB[nMatrixShapeN * _K + _ColIndex];
 			}
+			_Sum = _Sum * alpha + beta * pMatrixC[_RowIndex * nMatrixShapeN + _ColIndex];
 			pMatrixC[_RowIndex * nMatrixShapeN + _ColIndex] = _Sum;
 		}
 	}
@@ -153,8 +154,7 @@ int MatrixMulti_OMPKernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueType* p
 /// <param name="pstDPCQueue">DPC++的设备队列</param>
 /// <returns></returns>
 int MatrixMulti_GPU_SLM_Kernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueType* pMatrixC,
-	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK,
-	int nBlockSize, sycl::queue* pstDPCQueue)
+	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK, ValueType alpha, ValueType beta, int nBlockSize, sycl::queue* pstDPCQueue)
 {
 	if (!pstDPCQueue || !pMatrixA || !pMatrixB || !pMatrixC ||
 		nMatrixShapeM <= 0 || nMatrixShapeN <= 0 || nMatrixShapeK <= 0 || nBlockSize <= 0)
@@ -223,7 +223,7 @@ int MatrixMulti_GPU_SLM_Kernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueTy
 						{
 							_Sum += pMatrixA[nOffestMatrixRowA + nIndex] * pMatrixTransposeB[nOffestMatrixTransposeRowB + nIndex];
 						}
-
+						_Sum = _Sum * alpha + beta * pMatrixC[nMatrixShapeN * nRowIndex + nColIndex];
 						pMatrixC[nMatrixShapeN * nRowIndex + nColIndex] = _Sum;
 					});
 			}
@@ -259,8 +259,7 @@ int MatrixMulti_GPU_SLM_Kernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueTy
 /// <param name="pstDPCQueue">DPC++的设备队列</param>
 /// <returns></returns>
 int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueType* pMatrixC,
-	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK,
-	int nBlockSize, sycl::queue* pstDPCQueue)
+	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK, ValueType alpha, ValueType beta, int nBlockSize, sycl::queue* pstDPCQueue)
 {
 	if (!pstDPCQueue || !pMatrixA || !pMatrixB || !pMatrixC ||
 		nMatrixShapeM <= 0 || nMatrixShapeN <= 0 || nMatrixShapeK <= 0 || nBlockSize <= 0)
@@ -345,7 +344,7 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 									_Sum += pMatrixA[nOffestMatrixRowA + nIndex] * pMatrixTransposeB[nOffestMatrixTransposeRowB + nIndex];
 								}
 
-								//SubMatrix[m][n] += _Sum;
+								_Sum = _Sum * alpha * beta * pMatrixC[nOffsetMatrixRowC + nColIndex];
 								pMatrixC[nOffsetMatrixRowC + nColIndex] = _Sum;
 							}
 						}

@@ -69,6 +69,8 @@ int TestMatrixKernel()
 	int nMatrixShapeM = 8192;
 	int nMatrixShapeN = 8192;
 	int nMatrixShapeK = 5000;
+	ValueType alpha = 1;
+	ValueType beta = 0;
 	bool bIsSame = false;
 
 	auto _Start = std::chrono::high_resolution_clock::now();
@@ -97,16 +99,19 @@ int TestMatrixKernel()
 
 	InitMatrixData(pMatrixA, nMatrixShapeM, nMatrixShapeK);
 	InitMatrixData(pMatrixB, nMatrixShapeK, nMatrixShapeN);
+	std::fill(pMatrixC, pMatrixC + nMatrixShapeM * nMatrixShapeN, ValueType(1));
+	std::fill(pMatrixD, pMatrixD + nMatrixShapeM * nMatrixShapeN, ValueType(1));
+	std::fill(pMatrixE, pMatrixE + nMatrixShapeM * nMatrixShapeN, ValueType(1));
+	std::fill(pMatrixF, pMatrixF + nMatrixShapeM * nMatrixShapeN, ValueType(1));
 
 	{
 		// 第一次调用的结果不准确，丢弃
-		MatrixMulti_GPUKernel(pMatrixA, pMatrixB, pMatrixC, nMatrixShapeM, nMatrixShapeN, nMatrixShapeK,
-			nBlockSize, pstDPCQueue);
+		MatrixMulti_GPUKernel(pMatrixA, pMatrixB, pMatrixC, nMatrixShapeM, nMatrixShapeN, nMatrixShapeK, alpha, beta, nBlockSize, pstDPCQueue);
+		std::fill(pMatrixC, pMatrixC + nMatrixShapeM * nMatrixShapeN, ValueType(1));
 	}
 
 	_Start = std::chrono::high_resolution_clock::now();
-	int nGPURet = MatrixMulti_GPUKernel(pMatrixA, pMatrixB, pMatrixC, nMatrixShapeM, nMatrixShapeN, nMatrixShapeK,
-		nBlockSize, pstDPCQueue);
+	int nGPURet = MatrixMulti_GPUKernel(pMatrixA, pMatrixB, pMatrixC, nMatrixShapeM, nMatrixShapeN, nMatrixShapeK, alpha, beta, nBlockSize, pstDPCQueue);
 	_End = std::chrono::high_resolution_clock::now();
 	long long llUseTimeGPU = std::chrono::duration_cast<std::chrono::microseconds>(_End - _Start).count();
 	if (nGPURet != 0)
@@ -115,8 +120,7 @@ int TestMatrixKernel()
 	}
 
 	_Start = std::chrono::high_resolution_clock::now();
-	int nGPUSLMRet = MatrixMulti_GPU_SLM_Kernel(pMatrixA, pMatrixB, pMatrixD, nMatrixShapeM, nMatrixShapeN, nMatrixShapeK,
-		nBlockSize, pstDPCQueue);
+	int nGPUSLMRet = MatrixMulti_GPU_SLM_Kernel(pMatrixA, pMatrixB, pMatrixD, nMatrixShapeM, nMatrixShapeN, nMatrixShapeK, alpha, beta, nBlockSize, pstDPCQueue);
 	_End = std::chrono::high_resolution_clock::now();
 	long long llUseTimeGPU_SLM = std::chrono::duration_cast<std::chrono::microseconds>(_End - _Start).count();
 	if (nGPUSLMRet != 0)
@@ -125,8 +129,7 @@ int TestMatrixKernel()
 	}
 
 	_Start = std::chrono::high_resolution_clock::now();
-	int nGPUSLMSubRet = MatrixMulti_GPU_SLM_SubMatrix_Kernel(pMatrixA, pMatrixB, pMatrixE, nMatrixShapeM, nMatrixShapeN, nMatrixShapeK,
-		nBlockSize, pstDPCQueue);
+	int nGPUSLMSubRet = MatrixMulti_GPU_SLM_SubMatrix_Kernel(pMatrixA, pMatrixB, pMatrixE, nMatrixShapeM, nMatrixShapeN, nMatrixShapeK, alpha, beta, nBlockSize, pstDPCQueue);
 	_End = std::chrono::high_resolution_clock::now();
 	long long llUseTimeGPU_SLMSub = std::chrono::duration_cast<std::chrono::microseconds>(_End - _Start).count();
 	if (nGPUSLMSubRet != 0)
@@ -137,7 +140,7 @@ int TestMatrixKernel()
 	int nMKLRet = 0;
 	_Start = std::chrono::high_resolution_clock::now();
 	cblas_sgemm(CBLAS_LAYOUT::CblasRowMajor, CBLAS_TRANSPOSE::CblasNoTrans, CBLAS_TRANSPOSE::CblasNoTrans,
-		nMatrixShapeM, nMatrixShapeN, nMatrixShapeK, 1.0f, pMatrixA, nMatrixShapeK, pMatrixB, nMatrixShapeN, 0.0f, pMatrixF, nMatrixShapeN);
+		nMatrixShapeM, nMatrixShapeN, nMatrixShapeK, alpha, pMatrixA, nMatrixShapeK, pMatrixB, nMatrixShapeN, beta, pMatrixF, nMatrixShapeN);
 
 	_End = std::chrono::high_resolution_clock::now();
 	long long llUseTimeMKL = std::chrono::duration_cast<std::chrono::microseconds>(_End - _Start).count();

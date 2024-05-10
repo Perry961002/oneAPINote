@@ -16,7 +16,7 @@
 /// <param name="pstDPCQueue">DPC++的设备队列</param>
 /// <returns></returns>
 int MatrixMulti_GPUKernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueType* pMatrixC,
-	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK,
+	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK, ValueType alpha, ValueType beta, 
 	int nBlockSize, sycl::queue* pstDPCQueue);
 
 /// <summary>
@@ -33,7 +33,7 @@ int MatrixMulti_GPUKernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueType* p
 /// <param name="pstDPCQueue">DPC++的设备队列</param>
 /// <returns></returns>
 int MatrixMulti_GPU_SLM_Kernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueType* pMatrixC,
-	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK,
+	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK, ValueType alpha, ValueType beta, 
 	int nBlockSize, sycl::queue* pstDPCQueue);
 
 /// <summary>
@@ -50,7 +50,7 @@ int MatrixMulti_GPU_SLM_Kernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueTy
 /// <param name="pstDPCQueue">DPC++的设备队列</param>
 /// <returns></returns>
 int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueType* pMatrixC,
-	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK,
+	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK, ValueType alpha, ValueType beta, 
 	int nBlockSize, sycl::queue* pstDPCQueue);
 
 /// <summary>
@@ -67,7 +67,7 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 /// <param name="pstDPCQueue">DPC++的设备队列</param>
 /// <returns></returns>
 int MatrixMulti_OMPKernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueType* pMatrixC,
-	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK);
+	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK, ValueType alpha, ValueType beta);
 
 /// <summary>
 /// 矩阵转置
