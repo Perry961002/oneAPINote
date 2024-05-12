@@ -21,7 +21,7 @@ void InitMatrixData(ValueType* pMatrix, int nMatrixShapeM, int nMatrixShapeN)
 	}
 	std::random_device rd;
 	std::mt19937 stMt19937{ rd() };
-	std::uniform_real_distribution<ValueType> stRealDistri(-10.0, 10.0);
+	std::uniform_real_distribution<ValueType> stRealDistri(-5.0, 5.0);
 
 	int nMatrixSize = nMatrixShapeM * nMatrixShapeN;
 	int nIndex = 0;
@@ -66,11 +66,11 @@ void AdjustStringWidth(std::vector<std::string>& vecStrings, bool bIsAppend=true
 
 int TestMatrixKernel()
 {
-	int nMatrixShapeM = 8192;
-	int nMatrixShapeN = 8192;
-	int nMatrixShapeK = 5000;
-	ValueType alpha = 1;
-	ValueType beta = 0;
+	int nMatrixShapeM = 3000;
+	int nMatrixShapeN = 3000;
+	int nMatrixShapeK = 3000;
+	ValueType alpha = 10;
+	ValueType beta = 5;
 	bool bIsSame = false;
 
 	auto _Start = std::chrono::high_resolution_clock::now();
@@ -106,7 +106,7 @@ int TestMatrixKernel()
 
 	{
 		// 第一次调用的结果不准确，丢弃
-		MatrixMulti_GPUKernel(pMatrixA, pMatrixB, pMatrixC, nMatrixShapeM, nMatrixShapeN, nMatrixShapeK, alpha, beta, nBlockSize, pstDPCQueue);
+		MatrixMulti_GPU_SLM_SubMatrix_Kernel(pMatrixA, pMatrixB, pMatrixC, nMatrixShapeM, nMatrixShapeN, nMatrixShapeK, alpha, beta, nBlockSize, pstDPCQueue);
 		std::fill(pMatrixC, pMatrixC + nMatrixShapeM * nMatrixShapeN, ValueType(1));
 	}
 
@@ -179,6 +179,7 @@ int TestMatrixKernel()
 		Free(pstDPCQueue, pMatrixC);
 		Free(pstDPCQueue, pMatrixD);
 		Free(pstDPCQueue, pMatrixE);
+		Free(pstDPCQueue, pMatrixF);
 		delete pstDPCQueue;
 		pstDPCQueue = nullptr;
 	}

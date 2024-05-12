@@ -3,7 +3,7 @@
 
   <img src=".\img\machine.png" alt="machine" style="zoom:50%;" />
 
-- 项目中使用了3种方案来实现矩阵乘法，并调用了`Intel MKL`的接口来进行性能对比，最后得到了**24**倍左右的性能优势。
+- 项目中使用了3种方案来实现矩阵乘法，并调用了`Intel MKL`的接口来进行性能对比，在小矩阵时取得近乎一样的性能，大矩阵时大约慢50%左右。
 
   <img src=".\img\matrixkernel_testresult.png" alt="matrixkernel_testresult" style="zoom:50%;" />
 

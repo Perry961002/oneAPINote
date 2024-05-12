@@ -268,7 +268,7 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 	}
 
 	int nRet = 0;
-	ValueType* pMatrixTransposeB = nullptr;
+	ValueType* pMatrixTransposeA = nullptr;
 
 	try
 	{
@@ -283,12 +283,12 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 		sycl::range<2> stLocalRange(nBlockSize, nBlockSize);
 		sycl::nd_range<2> stTaskRange(stGlobalRange, stLocalRange);
 
-		// 将B矩阵进行转置 以减少内存墙的影响
-		pMatrixTransposeB = Malloc(pstDPCQueue, nMatrixShapeK * nMatrixShapeN, EMemoryAlloc::Device);
-		int nTransposeRnt = MatrixTranspose_GPUKernel(pMatrixB, pMatrixTransposeB, nMatrixShapeK, nMatrixShapeN, nBlockSize, pstDPCQueue);
+		// 将A矩阵进行转置 以减少内存墙的影响
+		pMatrixTransposeA = Malloc(pstDPCQueue, nMatrixShapeM * nMatrixShapeK, EMemoryAlloc::Device);
+		int nTransposeRnt = MatrixTranspose_GPUKernel(pMatrixA, pMatrixTransposeA, nMatrixShapeM, nMatrixShapeK, nBlockSize, pstDPCQueue);
 		if (nTransposeRnt != 0)
 		{
-			throw std::exception("矩阵B转置失败");
+			throw std::exception("矩阵A转置失败");
 		}
 
 		auto stTaskEvent = pstDPCQueue->submit([&](sycl::handler& stDPCHandle)
@@ -300,52 +300,47 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 						// 保证取得的二维下标是有效的(因为stGlobalRange是按两次取整矫正之后的行列构造的)
 						if (nGlobalRow >= nMatrixShapeM || nGlobalCol >= nMatrixShapeN) return;
 
-						// 每个nd_item对应的是输出矩阵的一个nSubMatrixSize*nSubMatrixSize子矩阵
-						// 对应的输入在A中是nSubMatrixSize*nMatrixShapeK的子矩阵；对应的输入在B中是nMatrixShapeK*nSubMatrixSize的子矩阵
-						ValueType arrMatrixTileA[nSubMatrixSize] = { 0.0 };
-						ValueType arrMatrixTileB[nSubMatrixSize] = { 0.0 };
-						//ValueType SubMatrix[nSubMatrixSize][nSubMatrixSize] = { 0.0 };
+						ValueType arrTileA[nSubMatrixSize] = { 0 };
+						ValueType arrTileB[nSubMatrixSize] = { 0 };
+						ValueType arrSubMatrix[nSubMatrixSize][nSubMatrixSize] = { 0 };
 
-						// 计算子矩阵
-						for (int m = 0; m < nSubMatrixSize; m++)
+						// 矩阵A已经转置为K*M
+						for (int k = 0; k < nMatrixShapeK; ++k)
 						{
-							int nRowIndex = nGlobalRow + m;
-							if (nRowIndex >= nMatrixShapeM) break;
-							int nOffsetMatrixRowC = nRowIndex * nMatrixShapeN;
-							int nOffestMatrixRowA = nMatrixShapeK * nRowIndex;
-							for (int n = 0; n < nSubMatrixSize; n++) 
+							// 装入A转置矩阵的第k行
+							ValueType* pCurrRowTA = pMatrixTransposeA + k * nMatrixShapeM;
+							for (int m = 0; m < nSubMatrixSize; ++m)
 							{
-								int nColIndex = nGlobalCol + n;
-								if (nColIndex >= nMatrixShapeN) break;
-								int nOffestMatrixTransposeRowB = nMatrixShapeK * nColIndex;
-								ValueType _Sum = 0;
-								int nLen = nMatrixShapeK / nLocalFloatArrayLen * nLocalFloatArrayLen;
-								for (int nLoop = 0; nLoop < nLen; nLoop += nLocalFloatArrayLen)
+								if (nGlobalRow + m >= nMatrixShapeM) break;
+								arrTileA[m] = pCurrRowTA[nGlobalRow + m];
+							}
+
+							// 装入B矩阵的第k行
+							ValueType* pCurrRowB = pMatrixB + k * nMatrixShapeN;
+							for (int n = 0; n < nSubMatrixSize; ++n)
+							{
+								if (nGlobalCol + n >= nMatrixShapeN) break;
+								arrTileB[n] = pCurrRowB[nGlobalCol + n];
+							}
+
+							for (int m = 0; m < nSubMatrixSize; ++m)
+							{
+								for (int n = 0; n < nSubMatrixSize; ++n)
 								{
-									for (int nIndex = 0; nIndex < nLocalFloatArrayLen; ++nIndex)
-									{
-										int nOffest = nLoop + nIndex;
-										// 按行装入A的局部数据
-										arrMatrixTileA[nIndex] = pMatrixA[nOffestMatrixRowA + nOffest];
-										// 按列装入B的局部数据
-										//arrMatrixTileB[nIndex] = pMatrixB[nMatrixShapeN * nOffest + nColIndex];
-										arrMatrixTileB[nIndex] = pMatrixTransposeB[nOffestMatrixTransposeRowB + nOffest];
-									}
-
-									// 计算_Sum
-									for (int _nIndex = 0; _nIndex < nLocalFloatArrayLen; ++_nIndex)
-									{
-										_Sum += arrMatrixTileA[_nIndex] * arrMatrixTileB[_nIndex];
-									}
+									arrSubMatrix[m][n] += arrTileA[m] * arrTileB[n];
 								}
+							}
+						}
 
-								for (int nIndex = nLen; nIndex < nMatrixShapeK; ++nIndex)
-								{
-									_Sum += pMatrixA[nOffestMatrixRowA + nIndex] * pMatrixTransposeB[nOffestMatrixTransposeRowB + nIndex];
-								}
-
-								_Sum = _Sum * alpha * beta * pMatrixC[nOffsetMatrixRowC + nColIndex];
-								pMatrixC[nOffsetMatrixRowC + nColIndex] = _Sum;
+						for (int m = 0; m < nSubMatrixSize; ++m)
+						{
+							if (nGlobalRow + m >= nMatrixShapeM) break;
+							ValueType* pCurrOutMatrixRow = pMatrixC + (nGlobalRow + m) * nMatrixShapeN;
+							for (int n = 0; n < nSubMatrixSize; ++n)
+							{
+								if (nGlobalCol + n >= nMatrixShapeN) break;
+								ValueType* pOutResult = pCurrOutMatrixRow + nGlobalCol + n;
+								*pOutResult = alpha * arrSubMatrix[m][n] + beta * (*pOutResult);
 							}
 						}
 					});
@@ -364,7 +359,7 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 		nRet = -1;
 	}
 
-	Free(pstDPCQueue, pMatrixTransposeB);
+	Free(pstDPCQueue, pMatrixTransposeA);
 	return nRet;
 }
 
