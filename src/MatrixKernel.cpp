@@ -300,34 +300,50 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 						// 保证取得的二维下标是有效的(因为stGlobalRange是按两次取整矫正之后的行列构造的)
 						if (nGlobalRow >= nMatrixShapeM || nGlobalCol >= nMatrixShapeN) return;
 
-						ValueType arrTileA[nSubMatrixSize] = { 0 };
-						ValueType arrTileB[nSubMatrixSize] = { 0 };
+						ValueType arrTileA[nSubMatrixSize * 2] = { 0 };
+						ValueType arrTileB[nSubMatrixSize * 2] = { 0 };
 						ValueType arrSubMatrix[nSubMatrixSize][nSubMatrixSize] = { 0 };
 
 						// 矩阵A已经转置为K*M
-						for (int k = 0; k < nMatrixShapeK; ++k)
+						for (int k = 0; k < nMatrixShapeK; k += 2)
 						{
-							// 装入A转置矩阵的第k行
-							ValueType* pCurrRowTA = pMatrixTransposeA + k * nMatrixShapeM;
-							for (int m = 0; m < nSubMatrixSize; ++m)
+							// 装入A转置矩阵的第k和k+1行
+							for (int i = 0; i < 2; ++i)
 							{
-								if (nGlobalRow + m >= nMatrixShapeM) break;
-								arrTileA[m] = pCurrRowTA[nGlobalRow + m];
+								if (k + i >= nMatrixShapeK) break;
+								int nOffset = i * nSubMatrixSize;
+								ValueType* pCurrRowTA = pMatrixTransposeA + (k + i) * nMatrixShapeM;
+								for (int m = 0; m < nSubMatrixSize; ++m)
+								{
+									if (nGlobalRow + m >= nMatrixShapeM) break;
+									arrTileA[m + nOffset] = pCurrRowTA[nGlobalRow + m];
+								}
 							}
 
-							// 装入B矩阵的第k行
-							ValueType* pCurrRowB = pMatrixB + k * nMatrixShapeN;
-							for (int n = 0; n < nSubMatrixSize; ++n)
+							// 装入B矩阵的第k和k+1行
+							for (int i = 0; i < 2; ++i)
 							{
-								if (nGlobalCol + n >= nMatrixShapeN) break;
-								arrTileB[n] = pCurrRowB[nGlobalCol + n];
+								if (k + i >= nMatrixShapeK) break;
+								int nOffset = i * nSubMatrixSize;
+								ValueType* pCurrRowB = pMatrixB + (k + i) * nMatrixShapeN;
+								for (int n = 0; n < nSubMatrixSize; ++n)
+								{
+									if (nGlobalCol + n >= nMatrixShapeN) break;
+									arrTileB[n + nOffset] = pCurrRowB[nGlobalCol + n];
+								}
 							}
 
 							for (int m = 0; m < nSubMatrixSize; ++m)
 							{
 								for (int n = 0; n < nSubMatrixSize; ++n)
 								{
-									arrSubMatrix[m][n] += arrTileA[m] * arrTileB[n];
+									ValueType _Result = arrSubMatrix[m][n];
+									for (int i = 0; i < 2; ++i)
+									{
+										int nOffset = i * nSubMatrixSize;
+										_Result += arrTileA[m + nOffset] * arrTileB[n + nOffset];
+									}
+									arrSubMatrix[m][n] = _Result;
 								}
 							}
 						}
@@ -339,8 +355,20 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 							for (int n = 0; n < nSubMatrixSize; ++n)
 							{
 								if (nGlobalCol + n >= nMatrixShapeN) break;
-								ValueType* pOutResult = pCurrOutMatrixRow + nGlobalCol + n;
-								*pOutResult = alpha * arrSubMatrix[m][n] + beta * (*pOutResult);
+								ValueType _Origin = (*(pCurrOutMatrixRow + nGlobalCol + n)) * beta;
+								arrSubMatrix[m][n] = alpha * arrSubMatrix[m][n] + _Origin;
+							}
+						}
+
+						for (int m = 0; m < nSubMatrixSize; ++m)
+						{
+							if (nGlobalRow + m >= nMatrixShapeM) break;
+							ValueType* pCurrOutMatrixRow = pMatrixC + (nGlobalRow + m) * nMatrixShapeN + nGlobalCol;
+							ValueType* pSubRow = &(arrSubMatrix[m][0]);
+							for (int n = 0; n < nSubMatrixSize; ++n)
+							{
+								if (nGlobalCol + n >= nMatrixShapeN) break;
+								pCurrOutMatrixRow[n] = pSubRow[n];
 							}
 						}
 					});
