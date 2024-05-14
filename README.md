@@ -3,9 +3,11 @@
 
   <img src=".\img\machine.png" alt="machine" style="zoom:50%;" />
 
-- 项目中使用了3种方案来实现矩阵乘法，并调用了`Intel MKL`的接口来进行性能对比，在小矩阵时取得近乎一样的性能，大矩阵时大约慢50%左右。
+- 项目中使用了3种方案来实现矩阵乘法，并调用了`Intel MKL`的接口来进行性能对比，最后利用子矩阵和改变矩阵存储顺序的优化取得了20%~60%的性能提升。
 
-  <img src=".\img\matrixkernel_testresult.png" alt="matrixkernel_testresult" style="zoom:50%;" />
+  <img src=".\img\small_matrixmulti.png" alt="small_matrixmulti" style="zoom:50%;" />
+
+  <img src=".\img\big_matrixmulti.png" alt="big_matrixmulti" style="zoom:50%;" />
 
 - 另外还实现了矩阵的卷积运算，测试结果如下
 
