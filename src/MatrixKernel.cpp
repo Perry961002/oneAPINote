@@ -294,9 +294,9 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 		}
 
 		// 因为后面每个nd_item处理的都是A和B的一个K*nSubMatrixSize大小的子矩阵, 可以改变存储方式来加速
-		pInnerMatrixA = Malloc(pstDPCQueue, nMatrixShapeK * nMatrixM * nSubMatrixSize, EMemoryAlloc::Shared);
+		pInnerMatrixA = Malloc(pstDPCQueue, nMatrixShapeK * nMatrixM * nSubMatrixSize, EMemoryAlloc::Device);
 		if (pInnerMatrixA == nullptr) throw std::exception("快速访问矩阵A内存分配失败");
-		pInnerMatrixB = Malloc(pstDPCQueue, nMatrixShapeK * nMatrixN * nSubMatrixSize, EMemoryAlloc::Shared);
+		pInnerMatrixB = Malloc(pstDPCQueue, nMatrixShapeK * nMatrixN * nSubMatrixSize, EMemoryAlloc::Device);
 		if (pInnerMatrixB == nullptr) throw std::exception("快速访问矩阵B内存分配失败");
 
 		int nTempGlobalLen = std::max(nMatrixM, nMatrixN);
