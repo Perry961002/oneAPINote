@@ -269,6 +269,8 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 
 	int nRet = 0;
 	ValueType* pMatrixTransposeA = nullptr;
+	ValueType* pInnerMatrixA = nullptr;
+	ValueType* pInnerMatrixB = nullptr;
 
 	try
 	{
@@ -291,59 +293,101 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 			throw std::exception("矩阵A转置失败");
 		}
 
+		// 因为后面每个nd_item处理的都是A和B的一个K*nSubMatrixSize大小的子矩阵, 可以改变存储方式来加速
+		pInnerMatrixA = Malloc(pstDPCQueue, nMatrixShapeK * nMatrixM * nSubMatrixSize, EMemoryAlloc::Shared);
+		if (pInnerMatrixA == nullptr) throw std::exception("快速访问矩阵A内存分配失败");
+		pInnerMatrixB = Malloc(pstDPCQueue, nMatrixShapeK * nMatrixN * nSubMatrixSize, EMemoryAlloc::Shared);
+		if (pInnerMatrixB == nullptr) throw std::exception("快速访问矩阵B内存分配失败");
+
+		int nTempGlobalLen = std::max(nMatrixM, nMatrixN);
+		sycl::range<1> TempRange(nTempGlobalLen);
+		auto stPrevTaskEvent = pstDPCQueue->submit([&](sycl::handler& stDPCHandle) 
+			{
+				stDPCHandle.parallel_for(TempRange, [=](sycl::item<1> _Item)
+					{
+						int nGlobalIndex = _Item.get_id(0);
+						int nBeginColIndex = nGlobalIndex * nSubMatrixSize;
+						int nGlobalOffset = nSubMatrixSize * nMatrixShapeK * nGlobalIndex;
+						// 拷贝每一行从nBeginColIndex列开始的nSubMatrixSize个数据
+						for (int k = 0; k < nMatrixShapeK; ++k)
+						{
+							int nOffset = nGlobalOffset + k * nSubMatrixSize;
+							// 拷贝A
+							for (int i = 0; i < nSubMatrixSize; ++i)
+							{
+								if (nBeginColIndex + i < nMatrixShapeM)
+								{
+									pInnerMatrixA[nOffset + i] = pMatrixTransposeA[k * nMatrixShapeM + nBeginColIndex + i];
+								}
+								else
+								{
+									pInnerMatrixA[nOffset + i] = 0;
+								}
+								
+							}
+						}
+
+						for (int k = 0; k < nMatrixShapeK; ++k)
+						{
+							int nOffset = nGlobalOffset + k * nSubMatrixSize;
+							// 拷贝B
+							for (int i = 0; i < nSubMatrixSize; ++i)
+							{
+								if (nBeginColIndex + i < nMatrixShapeN)
+								{
+									pInnerMatrixB[nOffset + i] = pMatrixB[k * nMatrixShapeN + nBeginColIndex + i];
+								}
+								else
+								{
+									pInnerMatrixB[nOffset + i] = 0;
+								}
+
+							}
+						}
+					});
+			});
+		stPrevTaskEvent.wait();
+		Free(pstDPCQueue, pMatrixTransposeA);
+		pMatrixTransposeA = nullptr;
+
 		auto stTaskEvent = pstDPCQueue->submit([&](sycl::handler& stDPCHandle)
 			{
 				stDPCHandle.parallel_for(stTaskRange, [=](sycl::nd_item<2> _Item)
 					{
-						int nGlobalRow = _Item.get_global_id(0) * nSubMatrixSize;
-						int nGlobalCol = _Item.get_global_id(1) * nSubMatrixSize;
+						int nItemRow = _Item.get_global_id(0);
+						int nItemCol = _Item.get_global_id(1);
+						int nGlobalRow = nItemRow * nSubMatrixSize;
+						int nGlobalCol = nItemCol * nSubMatrixSize;
 						// 保证取得的二维下标是有效的(因为stGlobalRange是按两次取整矫正之后的行列构造的)
 						if (nGlobalRow >= nMatrixShapeM || nGlobalCol >= nMatrixShapeN) return;
 
-						ValueType arrTileA[nSubMatrixSize * 2] = { 0 };
-						ValueType arrTileB[nSubMatrixSize * 2] = { 0 };
+						ValueType arrTileA[nSubMatrixSize] = { 0 };
+						ValueType arrTileB[nSubMatrixSize] = { 0 };
 						ValueType arrSubMatrix[nSubMatrixSize][nSubMatrixSize] = { 0 };
 
+						int nGlobalInnerMatricAOffset = nSubMatrixSize * nMatrixShapeK * nItemRow;
+						int nGlobalInnerMatricBOffset = nSubMatrixSize * nMatrixShapeK * nItemCol;
 						// 矩阵A已经转置为K*M
-						for (int k = 0; k < nMatrixShapeK; k += 2)
+						for (int k = 0; k < nMatrixShapeK; ++k)
 						{
-							// 装入A转置矩阵的第k和k+1行
-							for (int i = 0; i < 2; ++i)
+							int nInnerMatrixAOffset = k * nSubMatrixSize;
+							for (int m = 0; m < nSubMatrixSize; ++m)
 							{
-								if (k + i >= nMatrixShapeK) break;
-								int nOffset = i * nSubMatrixSize;
-								ValueType* pCurrRowTA = pMatrixTransposeA + (k + i) * nMatrixShapeM;
-								for (int m = 0; m < nSubMatrixSize; ++m)
-								{
-									if (nGlobalRow + m >= nMatrixShapeM) break;
-									arrTileA[m + nOffset] = pCurrRowTA[nGlobalRow + m];
-								}
+								arrTileA[m] = pInnerMatrixA[nGlobalInnerMatricAOffset + nInnerMatrixAOffset + m];
 							}
 
-							// 装入B矩阵的第k和k+1行
-							for (int i = 0; i < 2; ++i)
+
+							int nInnerMatrixBOffset = k * nSubMatrixSize;
+							for (int n = 0; n < nSubMatrixSize; ++n)
 							{
-								if (k + i >= nMatrixShapeK) break;
-								int nOffset = i * nSubMatrixSize;
-								ValueType* pCurrRowB = pMatrixB + (k + i) * nMatrixShapeN;
-								for (int n = 0; n < nSubMatrixSize; ++n)
-								{
-									if (nGlobalCol + n >= nMatrixShapeN) break;
-									arrTileB[n + nOffset] = pCurrRowB[nGlobalCol + n];
-								}
+								arrTileB[n] = pInnerMatrixB[nGlobalInnerMatricBOffset + nInnerMatrixBOffset + n];
 							}
 
 							for (int m = 0; m < nSubMatrixSize; ++m)
 							{
 								for (int n = 0; n < nSubMatrixSize; ++n)
 								{
-									ValueType _Result = arrSubMatrix[m][n];
-									for (int i = 0; i < 2; ++i)
-									{
-										int nOffset = i * nSubMatrixSize;
-										_Result += arrTileA[m + nOffset] * arrTileB[n + nOffset];
-									}
-									arrSubMatrix[m][n] = _Result;
+									arrSubMatrix[m][n] += arrTileA[m] * arrTileB[n];
 								}
 							}
 						}
@@ -388,6 +432,8 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 	}
 
 	Free(pstDPCQueue, pMatrixTransposeA);
+	Free(pstDPCQueue, pInnerMatrixA);
+	Free(pstDPCQueue, pInnerMatrixB);
 	return nRet;
 }
 
