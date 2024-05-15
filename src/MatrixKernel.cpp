@@ -607,8 +607,8 @@ int MatrixConvolution_GPUKernel_V2(ValueType* pMatrixInput, int nInputM, int nIn
 						// 保证输出矩阵的下标没有越界
 						if (nOutputRowIndex >= nOutputM || nOutputColIndex >= nOutputN) return;
 						ValueType _Sum = 0;
-						ValueType arrInput[nLocalFloatArrayLen] = { 0 };
-						ValueType arrKernel[nLocalFloatArrayLen] = { 0 };
+						ValueType arrInput[nSubMatrixSize] = { 0 };
+						ValueType arrKernel[nSubMatrixSize] = { 0 };
 						int nUsedPosition = 0;
 						for (int m = 0; m < nKernelM; ++m)
 						{
@@ -619,9 +619,9 @@ int MatrixConvolution_GPUKernel_V2(ValueType* pMatrixInput, int nInputM, int nIn
 								arrInput[nUsedPosition] = pMatrixInput[nInputRowOffset + n];
 								arrKernel[nUsedPosition] = pMatrixKernel[nKernelRowOffset + n];
 								++nUsedPosition;
-								if (nUsedPosition == nLocalFloatArrayLen)
+								if (nUsedPosition == nSubMatrixSize)
 								{
-									for (int nIndex = 0; nIndex < nLocalFloatArrayLen; ++nIndex)
+									for (int nIndex = 0; nIndex < nSubMatrixSize; ++nIndex)
 									{
 										_Sum += arrInput[nIndex] * arrKernel[nIndex];
 										arrInput[nIndex] = 0; 
@@ -632,7 +632,7 @@ int MatrixConvolution_GPUKernel_V2(ValueType* pMatrixInput, int nInputM, int nIn
 							}
 						}
 
-						for (int nIndex = 0; nIndex < nLocalFloatArrayLen; ++nIndex)
+						for (int nIndex = 0; nIndex < nSubMatrixSize; ++nIndex)
 						{
 							_Sum += arrInput[nIndex] * arrKernel[nIndex];
 						}

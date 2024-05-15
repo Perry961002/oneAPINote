@@ -66,11 +66,11 @@ void AdjustStringWidth(std::vector<std::string>& vecStrings, bool bIsAppend=true
 
 int TestMatrixKernel()
 {
-	int nMatrixShapeM = 3000;
-	int nMatrixShapeN = 3000;
-	int nMatrixShapeK = 3000;
-	ValueType alpha = 10;
-	ValueType beta = 5;
+	int nMatrixShapeM = 8000;
+	int nMatrixShapeN = 8000;
+	int nMatrixShapeK = 8000;
+	ValueType alpha = 3.14;
+	ValueType beta = 2.718;
 	bool bIsSame = false;
 
 	auto _Start = std::chrono::high_resolution_clock::now();
@@ -84,8 +84,9 @@ int TestMatrixKernel()
 	}
 	std::cout << "=========================================" << std::endl;
 	char strMatrixShapeInfo[128];
-	sprintf_s(strMatrixShapeInfo, sizeof(strMatrixShapeInfo), "A[%d, %d] * B[%d, %d] = C[%d, %d]",
-		nMatrixShapeM, nMatrixShapeK, nMatrixShapeK, nMatrixShapeN, nMatrixShapeM, nMatrixShapeN);
+	sprintf_s(strMatrixShapeInfo, sizeof(strMatrixShapeInfo), "A[%d, %d] B[%d, %d] C[%d, %d]\nC = %.4f * A * B + %.4f * C",
+		nMatrixShapeM, nMatrixShapeK, nMatrixShapeK, nMatrixShapeN, nMatrixShapeM, nMatrixShapeN,
+		alpha, beta);
 	std::cout << strMatrixShapeInfo << std::endl << "=========================================" << std::endl;
 
 	int nBlockSize = sqrt((double)GetMaxWorkItemSizes(pstDPCQueue));
@@ -191,8 +192,8 @@ int TestMatrixConvolution()
 {
 	int nInputM = 5000;
 	int nInputN = 5000;
-	int nKernelM = 3;
-	int nKernelN = 3;
+	int nKernelM = 4;
+	int nKernelN = 4;
 	int nOutM = nInputM - nKernelM + 1;
 	int nOutN = nInputN - nKernelN + 1;
 

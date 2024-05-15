@@ -19,7 +19,6 @@ void InitVetorData(ValueType* pVector, int nSize)
 int TestVectorKernel()
 {
 	int nVectorSize = 5000000;
-	bool bIsSame = false;
 
 	sycl::queue* pstDPCQueue = CreateDPCQueue();
 	if (pstDPCQueue == nullptr)
