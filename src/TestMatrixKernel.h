@@ -66,9 +66,9 @@ void AdjustStringWidth(std::vector<std::string>& vecStrings, bool bIsAppend=true
 
 int TestMatrixKernel()
 {
-	int nMatrixShapeM = 8000;
-	int nMatrixShapeN = 8000;
-	int nMatrixShapeK = 8000;
+	int nMatrixShapeM = 5000;
+	int nMatrixShapeN = 5000;
+	int nMatrixShapeK = 5000;
 	ValueType alpha = 3.14;
 	ValueType beta = 2.718;
 	bool bIsSame = false;
@@ -97,18 +97,21 @@ int TestMatrixKernel()
 	ValueType* pMatrixD = Malloc(pstDPCQueue, nMatrixShapeM * nMatrixShapeN, EMemoryAlloc::Shared);
 	ValueType* pMatrixE = Malloc(pstDPCQueue, nMatrixShapeM * nMatrixShapeN, EMemoryAlloc::Shared);
 	ValueType* pMatrixF = Malloc(pstDPCQueue, nMatrixShapeM * nMatrixShapeN, EMemoryAlloc::Host);
+	std::vector<ValueType> vecOutputTemp(nMatrixShapeM * nMatrixShapeN);
 
 	InitMatrixData(pMatrixA, nMatrixShapeM, nMatrixShapeK);
 	InitMatrixData(pMatrixB, nMatrixShapeK, nMatrixShapeN);
-	std::fill(pMatrixC, pMatrixC + nMatrixShapeM * nMatrixShapeN, ValueType(1));
-	std::fill(pMatrixD, pMatrixD + nMatrixShapeM * nMatrixShapeN, ValueType(1));
-	std::fill(pMatrixE, pMatrixE + nMatrixShapeM * nMatrixShapeN, ValueType(1));
-	std::fill(pMatrixF, pMatrixF + nMatrixShapeM * nMatrixShapeN, ValueType(1));
+	InitMatrixData(vecOutputTemp.data(), nMatrixShapeM, nMatrixShapeN);
 
+	std::copy(vecOutputTemp.begin(), vecOutputTemp.end(), pMatrixC);
+	std::copy(vecOutputTemp.begin(), vecOutputTemp.end(), pMatrixD);
+	std::copy(vecOutputTemp.begin(), vecOutputTemp.end(), pMatrixE);
+	std::copy(vecOutputTemp.begin(), vecOutputTemp.end(), pMatrixF);
+	
 	{
 		// 第一次调用的结果不准确，丢弃
 		MatrixMulti_GPU_SLM_SubMatrix_Kernel(pMatrixA, pMatrixB, pMatrixC, nMatrixShapeM, nMatrixShapeN, nMatrixShapeK, alpha, beta, nBlockSize, pstDPCQueue);
-		std::fill(pMatrixC, pMatrixC + nMatrixShapeM * nMatrixShapeN, ValueType(1));
+		std::copy(vecOutputTemp.begin(), vecOutputTemp.end(), pMatrixC);
 	}
 
 	_Start = std::chrono::high_resolution_clock::now();
