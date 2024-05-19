@@ -268,7 +268,6 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 	}
 
 	int nRet = 0;
-	ValueType* pMatrixTransposeA = nullptr;
 	ValueType* pInnerMatrixA = nullptr;
 	ValueType* pInnerMatrixB = nullptr;
 
@@ -285,14 +284,6 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 		sycl::range<2> stLocalRange(nBlockSize, nBlockSize);
 		sycl::nd_range<2> stTaskRange(stGlobalRange, stLocalRange);
 
-		// 将A矩阵进行转置 以减少内存墙的影响
-		pMatrixTransposeA = Malloc(pstDPCQueue, nMatrixShapeM * nMatrixShapeK, EMemoryAlloc::Device);
-		int nTransposeRnt = MatrixTranspose_GPUKernel(pMatrixA, pMatrixTransposeA, nMatrixShapeM, nMatrixShapeK, nBlockSize, pstDPCQueue);
-		if (nTransposeRnt != 0)
-		{
-			throw std::exception("矩阵A转置失败");
-		}
-
 		// 因为后面每个nd_item处理的都是A和B的一个K*nSubMatrixSize大小的子矩阵, 可以改变存储方式来加速
 		pInnerMatrixA = Malloc(pstDPCQueue, nMatrixShapeK * nMatrixM * nSubMatrixSize, EMemoryAlloc::Device);
 		if (pInnerMatrixA == nullptr) throw std::exception("快速访问矩阵A内存分配失败");
@@ -300,55 +291,49 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 		if (pInnerMatrixB == nullptr) throw std::exception("快速访问矩阵B内存分配失败");
 
 		int nTempGlobalLen = std::max(nMatrixM, nMatrixN);
-		sycl::range<1> TempRange(nTempGlobalLen);
-		auto stPrevTaskEvent = pstDPCQueue->submit([&](sycl::handler& stDPCHandle) 
+		sycl::range<2> TempRange(nTempGlobalLen, nMatrixShapeK);
+		auto stPrevTaskEvent = pstDPCQueue->submit([&](sycl::handler& stDPCHandle)
 			{
-				stDPCHandle.parallel_for(TempRange, [=](sycl::item<1> _Item)
+				stDPCHandle.parallel_for(TempRange, [=](sycl::item<2> _Item)
 					{
-						int nGlobalIndex = _Item.get_id(0);
-						int nBeginColIndex = nGlobalIndex * nSubMatrixSize;
-						int nGlobalOffset = nSubMatrixSize * nMatrixShapeK * nGlobalIndex;
-						// 拷贝每一行从nBeginColIndex列开始的nSubMatrixSize个数据
-						for (int k = 0; k < nMatrixShapeK; ++k)
+						int nGlobalDim0 = _Item.get_id(0);
+						int k = _Item.get_id(1);
+						int nBeginIndex = nGlobalDim0 * nSubMatrixSize;
+						int nGlobalOffset = nSubMatrixSize * nMatrixShapeK * nGlobalDim0;
+
+						// 将A矩阵中从nBeginIndex开始的nSubMatrixSize行数据按列存储方式存到新的数组
+						for (int i = 0; i < nSubMatrixSize; ++i)
 						{
-							int nOffset = nGlobalOffset + k * nSubMatrixSize;
-							// 拷贝A
-							for (int i = 0; i < nSubMatrixSize; ++i)
+							int nOutputOffset = nGlobalOffset + k * nSubMatrixSize;
+
+							if (nBeginIndex + i < nMatrixShapeM)
 							{
-								if (nBeginColIndex + i < nMatrixShapeM)
-								{
-									pInnerMatrixA[nOffset + i] = pMatrixTransposeA[k * nMatrixShapeM + nBeginColIndex + i];
-								}
-								else
-								{
-									pInnerMatrixA[nOffset + i] = 0;
-								}
-								
+								pInnerMatrixA[nOutputOffset + i] = pMatrixA[(nBeginIndex + i) * nMatrixShapeK + k];
+							}
+							else
+							{
+								pInnerMatrixA[nOutputOffset + i] = 0;
 							}
 						}
 
-						for (int k = 0; k < nMatrixShapeK; ++k)
+						// 将B矩阵中每行中从nBeginIndex开始的nSubMatrixSize列数据顺序存放到新的数组中
+						int nOffset = nGlobalOffset + k * nSubMatrixSize;
+						// 拷贝B
+						for (int i = 0; i < nSubMatrixSize; ++i)
 						{
-							int nOffset = nGlobalOffset + k * nSubMatrixSize;
-							// 拷贝B
-							for (int i = 0; i < nSubMatrixSize; ++i)
+							if (nBeginIndex + i < nMatrixShapeN)
 							{
-								if (nBeginColIndex + i < nMatrixShapeN)
-								{
-									pInnerMatrixB[nOffset + i] = pMatrixB[k * nMatrixShapeN + nBeginColIndex + i];
-								}
-								else
-								{
-									pInnerMatrixB[nOffset + i] = 0;
-								}
-
+								pInnerMatrixB[nOffset + i] = pMatrixB[k * nMatrixShapeN + nBeginIndex + i];
 							}
+							else
+							{
+								pInnerMatrixB[nOffset + i] = 0;
+							}
+
 						}
 					});
 			});
 		stPrevTaskEvent.wait();
-		Free(pstDPCQueue, pMatrixTransposeA);
-		pMatrixTransposeA = nullptr;
 
 		auto stTaskEvent = pstDPCQueue->submit([&](sycl::handler& stDPCHandle)
 			{
@@ -431,7 +416,6 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 		nRet = -1;
 	}
 
-	Free(pstDPCQueue, pMatrixTransposeA);
 	Free(pstDPCQueue, pInnerMatrixA);
 	Free(pstDPCQueue, pInnerMatrixB);
 	return nRet;
@@ -572,7 +556,6 @@ int MatrixConvolution_GPUKernel(ValueType* pMatrixInput, int nInputM, int nInput
 
 	return 0;
 }
-
 
 int MatrixConvolution_GPUKernel_V2(ValueType* pMatrixInput, int nInputM, int nInputN,
 	ValueType* pMatrixKernel, int nKernelM, int nKernelN, ValueType* pMatrixOutput,
