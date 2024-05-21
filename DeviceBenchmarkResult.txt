@@ -1,0 +1,73 @@
+Platform: Intel(R) OpenCL Graphics
+  Device: Intel(R) Arc(TM) Graphics
+    Driver version  : 31.0.101.5333 (Win64)
+    Compute units   : 112
+    Clock frequency : 2200 MHz
+
+    Global memory bandwidth (GBPS)
+      float   : 90.62
+      float2  : 86.55
+      float4  : 85.53
+      float8  : 90.15
+      float16 : 86.31
+
+    Single-precision compute (GFLOPS)
+      float   : 3903.91
+      float2  : 3877.29
+      float4  : 3892.07
+      float8  : 3876.00
+      float16 : 3671.38
+
+    Half-precision compute (GFLOPS)
+      half   : 7767.33
+      half2  : 7694.23
+      half4  : 7740.81
+      half8  : 7708.59
+      half16 : 7588.52
+
+    Double-precision compute (GFLOPS)
+      double   : 122.29
+      double2  : 120.40
+      double4  : 121.76
+      double8  : 120.79
+      double16 : 118.67
+
+    Integer compute (GIOPS)
+      int   : 1298.41
+      int2  : 1281.88
+      int4  : 1264.41
+      int8  : 1261.96
+      int16 : 1250.72
+
+    Integer compute Fast 24bit (GIOPS)
+      int   : 1266.26
+      int2  : 1267.11
+      int4  : 1258.75
+      int8  : 1247.85
+      int16 : 1229.77
+
+    Integer char (8bit) compute (GIOPS)
+      char   : 2576.56
+      char2  : 2561.59
+      char4  : 2544.34
+      char8  : 2504.00
+      char16 : 2407.44
+
+    Integer short (16bit) compute (GIOPS)
+      short   : 7552.33
+      short2  : 7448.35
+      short4  : 7563.24
+      short8  : 7431.70
+      short16 : 7325.07
+
+    Transfer bandwidth (GBPS)
+      enqueueWriteBuffer              : 15.63
+      enqueueReadBuffer               : 14.73
+      enqueueWriteBuffer non-blocking : 32.79
+      enqueueReadBuffer non-blocking  : 30.01
+      enqueueMapBuffer(for read)      : 23.15
+        memcpy from mapped ptr        : 18.48
+      enqueueUnmap(after write)       : 35.16
+        memcpy to mapped ptr          : 16.49
+
+    Kernel launch latency : 35.28 us
