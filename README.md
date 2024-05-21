@@ -1,7 +1,7 @@
 # oneAPI学习笔记
 - 此项目记录的是[`Intel oneAPI`](https://www.intel.com/content/www/us/en/developer/tools/oneapi/overview.html)的学习和测试代码，我的机器使用的CPU是`Intel Ultra 5 125H`，它是一款集成了GPU的SOC。
 
-  下面是利用[`clpeak`](https://github.com/krrishnarraj/clpeak)对GPU进行测试的结果（其他更详细的结果可以[打开这个文件](.\DeviceBenchmarkResult.txt)）
+  下面是利用[`clpeak`](https://github.com/krrishnarraj/clpeak)对GPU进行测试的结果（其他更详细的结果可以[打开这个文件](DeviceBenchmarkResult.txt)）
 
   ```
   Platform: Intel(R) OpenCL Graphics
