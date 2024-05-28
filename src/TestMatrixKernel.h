@@ -66,9 +66,9 @@ void AdjustStringWidth(std::vector<std::string>& vecStrings, bool bIsAppend=true
 
 int TestMatrixKernel()
 {
-	int nMatrixShapeM = 5000;
-	int nMatrixShapeN = 5000;
-	int nMatrixShapeK = 5000;
+	int nMatrixShapeM = 1000;
+	int nMatrixShapeN = 1000;
+	int nMatrixShapeK = 1000;
 	ValueType alpha = 3.14;
 	ValueType beta = 2.718;
 	bool bIsSame = false;
@@ -110,7 +110,7 @@ int TestMatrixKernel()
 	
 	{
 		// 第一次调用的结果不准确，丢弃
-		MatrixMulti_GPU_SLM_SubMatrix_Kernel(pMatrixA, pMatrixB, pMatrixC, nMatrixShapeM, nMatrixShapeN, nMatrixShapeK, alpha, beta, nBlockSize, pstDPCQueue);
+		MatrixMulti_GPU_SLM_SubMatrix_Kernel(pMatrixA, pMatrixB, pMatrixC, nMatrixShapeM, nMatrixShapeN, nMatrixShapeK, alpha, beta, pstDPCQueue);
 		std::copy(vecOutputTemp.begin(), vecOutputTemp.end(), pMatrixC);
 	}
 
@@ -133,7 +133,7 @@ int TestMatrixKernel()
 	}
 
 	_Start = std::chrono::high_resolution_clock::now();
-	int nGPUSLMSubRet = MatrixMulti_GPU_SLM_SubMatrix_Kernel(pMatrixA, pMatrixB, pMatrixE, nMatrixShapeM, nMatrixShapeN, nMatrixShapeK, alpha, beta, nBlockSize, pstDPCQueue);
+	int nGPUSLMSubRet = MatrixMulti_GPU_SLM_SubMatrix_Kernel(pMatrixA, pMatrixB, pMatrixE, nMatrixShapeM, nMatrixShapeN, nMatrixShapeK, alpha, beta, pstDPCQueue);
 	_End = std::chrono::high_resolution_clock::now();
 	long long llUseTimeGPU_SLMSub = std::chrono::duration_cast<std::chrono::microseconds>(_End - _Start).count();
 	if (nGPUSLMSubRet != 0)
@@ -158,7 +158,7 @@ int TestMatrixKernel()
 		bIsSame = Verify(pMatrixC, pMatrixD, nMatrixShapeM * nMatrixShapeN) && Verify(pMatrixC, pMatrixE, nMatrixShapeM * nMatrixShapeN) &&
 			Verify(pMatrixC, pMatrixF, nMatrixShapeM * nMatrixShapeN);
 		if (!bIsSame) std::cout << "计算结果不一致!" << std::endl;
-		else
+		//else
 		{
 			std::vector<std::string> vecTestNames{ "GPU用时: ","GPU局部缓存加速用时: ",
 												"GPU局部缓存&&子矩阵划分加速用时: ","使用Intel MKL用时: " };

@@ -51,7 +51,7 @@ int MatrixMulti_GPU_SLM_Kernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueTy
 /// <returns></returns>
 int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrixB, ValueType* pMatrixC,
 	int nMatrixShapeM, int nMatrixShapeN, int nMatrixShapeK, ValueType alpha, ValueType beta, 
-	int nBlockSize, sycl::queue* pstDPCQueue);
+	sycl::queue* pstDPCQueue);
 
 /// <summary>
 /// ¾ØÕó³Ë·¨µÄºËº¯Êý

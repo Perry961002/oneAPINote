@@ -55,13 +55,8 @@
 
   |           | 100*100 |    1K*1K |    5K*5K |   10K*10K |
   | :--------: | ------: | -------: | -------: | --------: |
-  |   My Code | 0.129 ms |  2.67 ms | 257.81 ms | 2225.03 ms |
-  | Intel MKL | 7.649 ms | 13.48 ms | 502.82 ms | 3083.07 ms |
-
-  | <img src=".\img\100MatrixMulti.png" alt="100MatrixMulti" width=400 height=200 align=center /> | <img src=".\img\1KMatrixMulti.png" alt="1KMatrixMulti" width=400 height=200 align=center /> |
-  |------------|------------|
-  | <img src=".\img\5KMatrixMulti.png" alt="5KMatrixMulti" width=400 height=200 align=center /> | <img src=".\img\10KMatrixMulti.png" alt="10KMatrixMulti" width=400 height=200 align=center /> |
-
+  |   My Code | 0.113 ms |  2.06 ms | 229.23 ms | 1732.81 ms |
+  | Intel MKL | 9.264 ms | 23.64 ms | 775.32 ms | 3773.68 ms |
 
 - 另外还实现了矩阵的卷积运算，测试结果如下
 
