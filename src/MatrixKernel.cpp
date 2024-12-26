@@ -303,34 +303,40 @@ int MatrixMulti_GPU_SLM_SubMatrix_Kernel(ValueType* pMatrixA, ValueType* pMatrix
 						int nGlobalOffset = nSubMatrixSize * nMatrixShapeK * nGlobalDim0;
 
 						// 将A矩阵中从nBeginIndex开始的nSubMatrixSize行数据按列存储方式存到新的数组
-						for (int i = 0; i < nSubMatrixSize; ++i)
+						if (nGlobalDim0 < nMatrixM)
 						{
-							int nOutputOffset = nGlobalOffset + k * nSubMatrixSize;
+							for (int i = 0; i < nSubMatrixSize; ++i)
+							{
+								int nOutputOffset = nGlobalOffset + k * nSubMatrixSize;
 
-							if (nBeginIndex + i < nMatrixShapeM)
-							{
-								pInnerMatrixA[nOutputOffset + i] = pMatrixA[(nBeginIndex + i) * nMatrixShapeK + k];
-							}
-							else
-							{
-								pInnerMatrixA[nOutputOffset + i] = 0;
+								if (nBeginIndex + i < nMatrixShapeM)
+								{
+									pInnerMatrixA[nOutputOffset + i] = pMatrixA[(nBeginIndex + i) * nMatrixShapeK + k];
+								}
+								else
+								{
+									pInnerMatrixA[nOutputOffset + i] = 0;
+								}
 							}
 						}
 
 						// 将B矩阵中每行中从nBeginIndex开始的nSubMatrixSize列数据顺序存放到新的数组中
-						int nOffset = nGlobalOffset + k * nSubMatrixSize;
-						// 拷贝B
-						for (int i = 0; i < nSubMatrixSize; ++i)
+						if (nGlobalDim0 < nMatrixN)
 						{
-							if (nBeginIndex + i < nMatrixShapeN)
+							int nOffset = nGlobalOffset + k * nSubMatrixSize;
+							// 拷贝B
+							for (int i = 0; i < nSubMatrixSize; ++i)
 							{
-								pInnerMatrixB[nOffset + i] = pMatrixB[k * nMatrixShapeN + nBeginIndex + i];
-							}
-							else
-							{
-								pInnerMatrixB[nOffset + i] = 0;
-							}
+								if (nBeginIndex + i < nMatrixShapeN)
+								{
+									pInnerMatrixB[nOffset + i] = pMatrixB[k * nMatrixShapeN + nBeginIndex + i];
+								}
+								else
+								{
+									pInnerMatrixB[nOffset + i] = 0;
+								}
 
+							}
 						}
 					});
 			});
